@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import { RNG } from './rng.js';
-import { blocks } from './blocks.js';
+import { blocks, resources } from './blocks.js';
 
 const geometry = new THREE.BoxGeometry();
-const material = new THREE.MeshLambertMaterial();
+
+
 export class World extends THREE.Group {
     /**
      * @type {{
@@ -31,8 +32,10 @@ params = {
      * Generates the world data and meshes
      */
     generate() {
+        const rng = new RNG(this.params.seed);
         this.initializeTerrain();
-        this.generateTerrain();
+        this.generateResources(rng);
+        this.generateTerrain(rng);
         this.generateMeshes();
     }
 
@@ -57,8 +60,31 @@ params = {
         }
     }
 
-    generateTerrain() {
-        const rng = new RNG(this.params.seed);
+    /**
+     * Generates the resources
+     */
+    generateResources(rng) {
+        const simplex = new SimplexNoise(rng);
+        resources.forEach(resource => {
+        for (let x = 0; x < this.size.width; x++) {
+            for (let y = 0; y < this.size.height; y++) {
+                for (let z = 0; z < this.size.width; z++) {
+                    const value = simplex.noise3d(
+                        x / resource.scale.x,
+                        y / resource.scale.y, 
+                        z / resource.scale.z);
+                    if (value > resource.scarcity) {
+                        this.setBlock(x, y, z, resource.id);
+                    }
+                }
+            }
+        }
+    });  
+ }
+    /**
+     * Generates the terrain
+     */
+    generateTerrain(rng) {
         const simplex = new SimplexNoise(rng);
         for (let x = 0; x < this.size.width; x++) {
             for (let z = 0; z < this.size.width; z++) {
@@ -79,11 +105,11 @@ params = {
 
                 // Fill in all bloakcs at or below terrain height
                 for (let y = 0; y <= this.size.height; y++) {
-                    if (y < height) {
+                    if (y < height && this.getBlock(x, y, z).id ===blocks.empty.id) {
                         this.setBlock(x, y, z, blocks.dirt.id);
                     } else if (y === height) {
                         this.setBlock(x, y, z, blocks.grass.id);
-                    } else {
+                    } else if (y > height) {
                         this.setBlock(x, y, z, blocks.empty.id);
                     }
                 };
@@ -97,21 +123,35 @@ params = {
         this.clear();
 
         const maxCount = this.size.width * this.size.height * this.size.width;
-        const mesh = new THREE.InstancedMesh(geometry, material, maxCount);
-        mesh.count = 0;
+
+        // creating a lookup table where the key is the block id
+        const meshes = {};
+
+        Object.values(blocks)
+            .filter(blockType => blockType.id !== blocks.empty.id)
+            .forEach(blockType => {
+                const mesh = new THREE.InstancedMesh(geometry, blockType.material, maxCount);
+                mesh.name = blockType.name;
+                mesh.count = 0;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                meshes[blockType.id] = mesh;
+            });
 
         const matrix = new THREE.Matrix4();
         for (let x = 0; x < this.size.width; x++) {
             for (let y = 0; y < this.size.height; y++) {
                 for (let z = 0; z < this.size.width; z++) {
                         const blockId = this.getBlock(x, y, z).id;
-                        const blockType = Object.values(blocks).find(x => x.id === blockId);
+                       
+                        if (blockId === blocks.empty.id ) continue;
+
+                        const mesh = meshes[blockId];
                         const instanceId = mesh.count;
 
-                        if (blockId !== blocks.empty.id && !this.isBlockObscured(x, y, z)) {
+                        if (!this.isBlockObscured(x, y, z)) {
                         matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
                         mesh.setMatrixAt(instanceId, matrix);
-                        mesh.setColorAt(instanceId, new THREE.Color(blockType.color));
                         this.setBlockInstance(x, y, z, instanceId);
                         mesh.count++;
                     }
@@ -119,7 +159,7 @@ params = {
             }
         }
 
-        this.add(mesh);
+        this.add(...Object.values(meshes));
     } 
 
     /**
@@ -181,7 +221,7 @@ params = {
     }
 
 /**
- * returns true if this blocck is completely obscured by other blocks
+ * returns true if this block is completely obscured by other blocks
  * @param {number} x
  * @param {number} y
  * @param {number} z
@@ -189,7 +229,7 @@ params = {
  */
 isBlockObscured(x, y, z) {
     /**
-     * returns true if this blocck is completely obscured by other blocks
+     * returns true if this block is completely obscured by other blocks
      * @param {number} x
      * @param {number} y
      * @param {number} z
