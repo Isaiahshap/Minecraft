@@ -3,6 +3,15 @@ import { WorldChunk } from './worldChunk';
 
 export class World extends THREE.Group {
 
+/**
+* The number of chunks to render around the player.
+* When this is set to 0, the chunk the player is on
+* is the only one that is rendered. If it is set to 1,
+* the adjacent chunks are rendered; if set to 2, the
+* chunks adjacent to those are rendered, and so on.
+*/
+    drawDistance = 1;
+
     chunkSize = { 
         width: 32, 
         height: 32 
@@ -40,6 +49,44 @@ export class World extends THREE.Group {
     }
 
     /**
+     * updates the visible portions of the world based on the current player position
+     * @param {Player} player
+     */
+    update(player) {
+        const visibleChunks = this.getVisibleChunks(player);
+        console.log(visibleChunks);
+        //2. comapre with the current set of chunks
+        //3. Remove chunks that are no longer visible
+        //4. Add new chunks that just came into view
+    }
+
+        /**
+         * Retuurns an array containing the visible chunks to player
+         * @param {Player} player
+         * @returns {{x: number, z: number}[]}
+         */
+        getVisibleChunks(player) {
+            const visibleChunks = [];
+
+            const coords = this.worldToChunkCoords(
+                player.position.x, 
+                player.position.y, 
+                player.position.z
+            );
+
+            const chunkX = coords.chunk.x;
+            const chunkZ = coords.chunk.z;
+
+            for (let x = chunkX - this.drawDistance; x <= chunkX + this.drawDistance; x++) {
+                for (let z = chunkZ - this.drawDistance; z <= chunkZ + this.drawDistance; z++) {
+                    visibleChunks.push({ x, z });
+                }
+            }
+
+            return visibleChunks;
+        }
+    
+    /**
      * gets the block data at (x, y, z)
      * @param {number} x
      * @param {number} y
@@ -52,7 +99,7 @@ export class World extends THREE.Group {
 
 
         if (chunk) {
-            console.log(coords.block);
+            //console.log(coords.block);
             return chunk.getBlock(
                 coords.block.x, 
                 coords.block.y, 

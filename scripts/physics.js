@@ -106,7 +106,7 @@ export default class Physics {
         }
         
         if(candidates.length > 0) {
-          console.log(`Broadphase Candidates: ${candidates.length}`);
+          //console.log(`Broadphase Candidates: ${candidates.length}`);
         }
         return candidates;
 
@@ -165,7 +165,7 @@ export default class Physics {
       }
     }
     if(collisions.length > 0) {
-      console.log(`Narrowphase Collisions: ${collisions.length}`);
+      //console.log(`Narrowphase Collisions: ${collisions.length}`);
     }
 
     return collisions;
