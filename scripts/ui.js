@@ -8,6 +8,7 @@ export function createUI(scene, world, player) {
     const sceneFolder = gui.addFolder('Scene');
     sceneFolder.add(scene.fog, 'near', 1, 200, 1).name('Fog Near');
     sceneFolder.add(scene.fog, 'far', 1, 200, 1).name('Fog Far');
+    
     const playerFolder = gui.addFolder('Player');
     playerFolder.add(player, 'maxSpeed', 1, 20).name('Max Speed');
     playerFolder.add(player.cameraHelper, 'visible').name('Show Camera Helper');
