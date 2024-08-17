@@ -20,6 +20,7 @@ export class WorldChunk extends THREE.Group {
 
     constructor(size, params) {
         super();
+        this.loaded = false;
         this.size = size;
         this.params = params;
     }
@@ -28,11 +29,17 @@ export class WorldChunk extends THREE.Group {
      * Generates the world data and meshes
      */
     generate() {
+        const start = performance.now();
+
         const rng = new RNG(this.params.seed);
         this.initializeTerrain();
         this.generateResources(rng);
         this.generateTerrain(rng);
         this.generateMeshes();
+
+        this.loaded = true;
+
+        console.log(`loaded chunk in ${performance.now() - start}ms`);
     }
 
     /**

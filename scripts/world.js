@@ -3,6 +3,11 @@ import { WorldChunk } from './worldChunk';
 
 export class World extends THREE.Group {
 
+    /**
+     * whether or not we want to load the chunks asynchronously
+     */
+    asyncLoading = true;
+
 /**
 * The number of chunks to render around the player.
 * When this is set to 0, the chunk the player is on
@@ -10,7 +15,7 @@ export class World extends THREE.Group {
 * the adjacent chunks are rendered; if set to 2, the
 * chunks adjacent to those are rendered, and so on.
 */
-    drawDistance = 1;
+    drawDistance = 2;
 
     chunkSize = { 
         width: 32, 
@@ -37,10 +42,13 @@ export class World extends THREE.Group {
     generate() {
         this.disposeChunks();
 
-        for (let x = -1; x <= 1; x++) {
-            for (let z = -1; z <= 1; z++) {
+        for (let x = -this.drawDistance; x <= this.drawDistance; x++) {
+            for (let z = -this.drawDistance; z <= this.drawDistance; z++) {
                 const chunk = new WorldChunk(this.chunkSize, this.params);
-                chunk.position.set(x * this.chunkSize.width, 0, z * this.chunkSize.width);
+                chunk.position.set(
+                    x * this.chunkSize.width, 
+                    0, 
+                    z * this.chunkSize.width);
                 chunk.userData = { x, z };
                 chunk.generate();
                 this.add(chunk);
@@ -54,10 +62,12 @@ export class World extends THREE.Group {
      */
     update(player) {
         const visibleChunks = this.getVisibleChunks(player);
-        console.log(visibleChunks);
-        //2. comapre with the current set of chunks
-        //3. Remove chunks that are no longer visible
-        //4. Add new chunks that just came into view
+        const chunksToAdd = this.getChunksToAdd(visibleChunks);
+        this.removeUnusedChunks(visibleChunks);
+        
+        for (const chunk of chunksToAdd) {
+            this.generateChunk(chunk.x, chunk.z);
+        }
     }
 
         /**
@@ -85,6 +95,71 @@ export class World extends THREE.Group {
 
             return visibleChunks;
         }
+
+    /**
+     * returns an array containing the coordinates of the chunks that
+     * are not yet loaded and ened to be added to the scene
+     * @param {{ x: number, z: number}[]} visibleChunks
+     * @returns {{ x: number, z: number}[]}
+     */
+    getChunksToAdd(visibleChunks) {
+        //Filter down the visible chunks to those not alreasdy in the world
+        return visibleChunks.filter((chunk) => {
+            const chunkExists = this.children
+                .map((obj) => obj.userData)
+                .find(({ x, z }) => (
+                    chunk.x === x && chunk.z === z
+                ));
+
+            return !chunkExists;
+        })
+    }
+
+    /**
+     * Removes Current laoded chnks that are no longer visile to the player
+     * @param {{ x: number, z: number}[]} visibleChunks
+     */
+    removeUnusedChunks(visibleChunks) {
+        //Filter down the visible chunks to those not alreasdy in the world
+        const chunksToRemove = this.children.filter((chunk) => {
+            const { x, z } = chunk.userData;
+            const chunkExists = visibleChunks
+                .find((visibleChunk) => (
+                    visibleChunk.x === x && visibleChunk.z === z
+                ));
+
+            return !chunkExists;
+         });
+
+         for (const chunk of chunksToRemove) {
+            chunk.disposeInstances();
+            this.remove(chunk);
+            console.log(`removing chunk at x: ${chunk.userData.x}, z: ${chunk.userData.z}`);
+         }
+    }
+
+    /**
+     * Generates the chunk at the (x, z) coordinates
+     * @param {number} x
+     * @param {number} z
+     */
+    generateChunk(x, z) {
+        const chunk = new WorldChunk(this.chunkSize, this.params);
+        chunk.position.set(
+            x * this.chunkSize.width, 
+            0, 
+            z * this.chunkSize.width);
+        chunk.userData = { x, z };
+
+        if (this.asyncLoading) {
+            requestIdleCallback(chunk.generate.bind(chunk), { timeout: 1000 });
+        } else {
+            chunk.generate();
+        }
+
+        this.add(chunk);
+        console.log(`adding chunk at x: ${x}, z: ${z}`);
+    }
     
     /**
      * gets the block data at (x, y, z)
@@ -98,8 +173,7 @@ export class World extends THREE.Group {
         const chunk = this.getChunk(coords.chunk.x, coords.chunk.z);
 
 
-        if (chunk) {
-            //console.log(coords.block);
+        if (chunk && chunk.loaded) {
             return chunk.getBlock(
                 coords.block.x, 
                 coords.block.y, 
